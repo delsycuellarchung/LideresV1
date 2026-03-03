@@ -16,11 +16,13 @@ export default function FormularioPublicPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = React.useState(false);
   const [evaluatorName, setEvaluatorName] = React.useState<string>('');
+  const [evaluadoName, setEvaluadoName] = React.useState<string>('');
   const [validationError, setValidationError] = React.useState<string>('');
+  const headerRef = React.useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = React.useState<number>(0);
 
   React.useEffect(() => {
     if (!token) return;
-
     // Load form data from localStorage (in a real scenario, fetch from API)
     try {
       const raw = localStorage.getItem('formulario_afirmaciones');
@@ -35,12 +37,43 @@ export default function FormularioPublicPage() {
         console.log('✅ Respuestas recuperadas del guardado anterior');
       }
 
-      // In production, fetch evaluator info from API using token
-      setEvaluatorName('Evaluador');
+      // In production, fetch evaluator + evaluado info from Supabase using token
+      const fetchInfo = async () => {
+        try {
+          if (supabase && token) {
+            const { data, error } = await supabase.from('form_submissions').select('evaluator_name, evaluator_email, responses, form_data').eq('token', token).single();
+            if (!error && data) {
+              const resp = (data as any).responses || {};
+              const fd = (data as any).form_data || {};
+              const ename = (data as any).evaluator_name || fd.evaluator_name || resp.evaluator_name || null;
+              const evalName = ename ? String(ename) : '';
+              const edName = resp.evaluado_nombre || fd.evaluado_nombre || fd.nombre_evaluado || '';
+              if (evalName) setEvaluatorName(evalName);
+              if (edName) setEvaluadoName(String(edName));
+            }
+          }
+        } catch (e) {
+          console.warn('Aviso: no se pudo obtener evaluator/evaluado desde Supabase', e);
+          if (!evaluatorName) setEvaluatorName('Evaluador');
+        }
+      };
+
+      fetchInfo();
     } catch (e) {
       console.warn(e);
     }
   }, [token]);
+
+  // Measure sticky header height and update padding for content so it doesn't get hidden
+  React.useLayoutEffect(() => {
+    const measure = () => {
+      const h = headerRef.current ? headerRef.current.offsetHeight : 0;
+      setHeaderHeight(h);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [instrucciones.length, evaluadoName, evaluatorName]);
 
   // Guardar respuestas en localStorage cuando cambien (con debounce)
   React.useEffect(() => {
@@ -196,49 +229,50 @@ export default function FormularioPublicPage() {
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f0f4ff 0%, #f8f9ff 100%)', padding: '20px' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Card Container */}
-        <div style={{ background: '#f8f9ff', borderRadius: 12, boxShadow: '0 8px 32px rgba(2, 6, 23, 0.06)', padding: '28px', border: '1px solid rgba(79, 70, 229, 0.1)' }}>
-          {/* Header */}
-          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid rgba(239, 68, 68, 0.2)' }}>
-            <h1 style={{ fontSize: 32, fontWeight: 700, color: '#0F172A', margin: '0 0 6px 0', letterSpacing: '0.5px' }}>Formulario de evaluación</h1>
-            <p style={{ fontSize: 14, color: '#64748b', margin: 0, fontWeight: 500 }}>Evaluado: <span style={{ color: '#0F172A', fontWeight: 700 }}>{evaluatorName || 'Nombre no disponible'}</span></p>
-          </div>
-
-          {/* Form Content */}
+        <div style={{ background: '#f8f9ff', borderRadius: 12, boxShadow: '0 8px 32px rgba(2, 6, 23, 0.06)', padding: '28px', border: 'none' }}>
+          {/* Header + scale (sticky) */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ marginTop: 8 }}>
-                  {instrucciones.length === 0 ? (
-                    <div style={{ color: 'rgba(15,23,42,0.6)', fontSize: 14, padding: '8px 0' }}>No hay instrucciones disponibles.</div>
-                  ) : (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: `minmax(500px, 1fr) repeat(${instrucciones.length}, minmax(90px, 120px))`,
-                      gap: 8,
-                      alignItems: 'flex-end',
-                      marginBottom: 12,
-                      paddingBottom: 8,
-                      borderBottom: '1px solid rgba(239, 68, 68, 0.2)'
-                    }}>
-                      <div></div>
-                      {instrucciones.map((ins, i) => (
-                        <div key={`head-${i}`} style={{ textAlign: 'left', padding: '0 4px', maxWidth: 140, wordBreak: 'break-word', whiteSpace: 'normal', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                          {ins.descripcion ? (
-                            <div style={{ fontSize: 10, color: 'rgba(15,23,42,0.55)', marginBottom: 2, lineHeight: '1.1', hyphens: 'auto', flex: 1, display: 'flex', alignItems: 'center' }}>{ins.descripcion}</div>
-                          ) : null}
-                          <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 12 }}>{ins.etiqueta}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 60, background: '#f8f9ff', padding: '16px 28px', border: '1px solid rgba(79, 70, 229, 0.1)', borderRadius: 10, margin: '-28px -28px 12px -28px', boxShadow: '0 6px 18px rgba(2,6,23,0.06)' }}>
+              <div style={{ marginBottom: 8 }}>
+                <h1 style={{ fontSize: 32, fontWeight: 700, color: '#0F172A', margin: '0 0 6px 0', letterSpacing: '0.5px' }}>Formulario de evaluación</h1>
+                <p style={{ fontSize: 14, color: '#64748b', margin: 0, fontWeight: 500 }}>Evaluado: <span style={{ color: '#0F172A', fontWeight: 700 }}>{evaluadoName || evaluatorName || 'Nombre no disponible'}</span></p>
+              </div>
+
+              {instrucciones.length === 0 ? (
+                <div style={{ color: 'rgba(15,23,42,0.6)', fontSize: 14, padding: '8px 0' }}>No hay instrucciones disponibles.</div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: `minmax(420px, 1fr) repeat(${instrucciones.length}, minmax(120px, 160px))`,
+                  gap: 16,
+                  alignItems: 'flex-end',
+                  marginBottom: 0,
+                  paddingBottom: 0
+                }}>
+                  <div></div>
+                  {instrucciones.map((ins, i) => (
+                    <div key={`head-${i}`} style={{ textAlign: 'left', padding: '0 8px', maxWidth: 200, wordBreak: 'break-word', whiteSpace: 'normal', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        {ins.descripcion ? (
+                          <div style={{ fontSize: 11, color: 'rgba(15,23,42,0.6)', marginBottom: 4, lineHeight: '1.25', hyphens: 'auto', flex: 1, display: 'flex', alignItems: 'center' }}>{ins.descripcion}</div>
+                        ) : null}
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 12 }}>{ins.etiqueta}</div>
+                      </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: 8, paddingTop: 0 }}>
 
                   {allQuestions.map((it, idx) => (
                     <div
                       key={it.key}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: `minmax(500px, 1fr) repeat(${Math.max(instrucciones.length, 1)}, minmax(90px, 120px))`,
-                        gap: 8,
+                        gridTemplateColumns: `minmax(420px, 1fr) repeat(${Math.max(instrucciones.length, 1)}, minmax(120px, 160px))`,
+                        gap: 16,
                         alignItems: 'center',
-                        padding: '4px 8px',
+                        padding: '6px 8px',
                         marginBottom: 0,
                         borderRadius: 6
                       }}
@@ -295,9 +329,9 @@ export default function FormularioPublicPage() {
                       }}>
                         <div></div>
                         {instrucciones.map((ins, i) => (
-                          <div key={`est-head-${i}`} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <div key={`est-head-${i}`} style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', height: '100%', padding: '0 8px', maxWidth: 200 }}>
                             {ins.descripcion ? (
-                              <div style={{ fontSize: 10, color: 'rgba(15,23,42,0.55)', marginBottom: 2, flex: 1, display: 'flex', alignItems: 'center' }}>{ins.descripcion}</div>
+                              <div style={{ fontSize: 11, color: 'rgba(15,23,42,0.6)', marginBottom: 4, flex: 1, display: 'flex', alignItems: 'center', lineHeight: '1.25' }}>{ins.descripcion}</div>
                             ) : null}
                             <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 12 }}>{ins.etiqueta}</div>
                           </div>
@@ -311,14 +345,14 @@ export default function FormularioPublicPage() {
                       <div
                         key={idx}
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: `minmax(500px, 1fr) repeat(${Math.max(instrucciones.length, 1)}, minmax(90px, 120px))`,
-                          gap: 8,
-                          alignItems: 'center',
-                          padding: '4px 0',
-                          marginBottom: 0,
-                          borderBottom: 'none'
-                        }}
+                            display: 'grid',
+                            gridTemplateColumns: `minmax(420px, 1fr) repeat(${Math.max(instrucciones.length, 1)}, minmax(120px, 160px))`,
+                            gap: 16,
+                            alignItems: 'center',
+                            padding: '6px 0',
+                            marginBottom: 0,
+                            borderBottom: 'none'
+                          }}
                       >
                         <div style={{ fontWeight: 400, color: '#0F172A', fontSize: 13, lineHeight: '1.4', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                           {questionNumber}. {it.pregunta || 'Pregunta no disponible'}

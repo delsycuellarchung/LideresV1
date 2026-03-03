@@ -268,9 +268,7 @@ export default function AdminImportPage() {
   };
   return (
     <section>
-      <h2 style={{ margin: '0 0 24px 24px', fontSize: 32, fontWeight: 800, transform: 'translateY(-62px)' }}>
-        Importar datos
-      </h2>
+      <h2 style={{ margin: '0 0 24px 24px', fontSize: 32, fontWeight: 800, transform: 'translateY(-62px)' }}>IMPORTAR DATOS</h2>
       <div style={{ marginLeft: 24, maxWidth: 1150 }}>
           <div style={{ marginBottom: 20, maxWidth: 1200 }}>
           <div style={{ flex: 1 }}>

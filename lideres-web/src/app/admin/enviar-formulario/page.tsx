@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
 export default function EnviarFormularioPage() {
   const router = useRouter();
@@ -17,20 +18,39 @@ export default function EnviarFormularioPage() {
   const [useImportOrder, setUseImportOrder] = React.useState(true);
 
   React.useEffect(() => {
-    loadEvaluators();
+    const disableDb = String(process.env.NEXT_PUBLIC_DISABLE_DB || '').toLowerCase() === 'true';
+    if (disableDb) {
+      // Try to load from DB automatically even if the env flag is set
+      setLoadingEvaluators(true);
+      loadEvaluators(true).finally(() => setLoadingEvaluators(false));
+    } else {
+      loadEvaluators();
+    }
   }, []);
 
-  const loadEvaluators = async () => {
+  const loadEvaluators = async (forceDb = false) => {
     try {
       const disableDb = String(process.env.NEXT_PUBLIC_DISABLE_DB || '').toLowerCase() === 'true';
-      
-      if (!supabase || disableDb) {
-        // Simulación con datos de ejemplo
-        setEvaluators([
-          { id: '1', nombre_evaluador: 'Juan Pérez', correo: 'juan@example.com' },
-          { id: '2', nombre_evaluador: 'María García', correo: 'maria@example.com' },
-          { id: '3', nombre_evaluador: 'Carlos López', correo: 'carlos@example.com' },
-        ]);
+
+      // Determine the supabase client to use. If the shared `supabase` is null but `forceDb` is true,
+      // attempt to create a temporary client from env vars so we can fetch real imported data.
+      let dbClient: any = supabase;
+      if (!dbClient && forceDb) {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (url && key) {
+          try {
+            dbClient = createClient(url, key);
+          } catch (e) {
+            console.error('Error creating temporary supabase client:', e);
+          }
+        }
+      }
+
+      // If we don't have a client, or DB is disabled and not forcing, show an explicit message.
+      if (!dbClient || (disableDb && !forceDb)) {
+        setMessage({ type: 'error', text: 'Base de datos no configurada: establece NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY y reinicia la aplicación.' });
+        setEvaluators([]);
         setLoadingEvaluators(false);
         return;
       }
@@ -39,7 +59,7 @@ export default function EnviarFormularioPage() {
       let evalData: any[] | null = null;
       let evalError: any = null;
       try {
-        const res = await supabase
+        const res = await dbClient
           .from('evaluators')
           .select('*')
           .order('row_index', { ascending: true })
@@ -47,7 +67,7 @@ export default function EnviarFormularioPage() {
         evalData = res.data as any[] | null;
         evalError = res.error;
       } catch (e) {
-        const res2 = await supabase.from('evaluators').select('*').limit(10000);
+        const res2 = await dbClient.from('evaluators').select('*').limit(10000);
         evalData = res2.data as any[] | null;
         evalError = res2.error;
       }
@@ -60,9 +80,9 @@ export default function EnviarFormularioPage() {
           });
         });
       }
-      const { data: personasData, error: personasError } = await supabase
+      const { data: personasData, error: personasError } = await dbClient
         .from('personas')
-        .select('id, nombre, correo, codigo')
+        .select('id, nombre, correo, codigo, tipo')
         .eq('tipo', 'evaluador')
         .limit(1000);
 
@@ -136,9 +156,13 @@ export default function EnviarFormularioPage() {
 
       // Si estamos usando correo de prueba, agregar un evaluador temporal
       if (useTestEmail && testEmail.trim()) {
+        const local = testEmail.trim().split('@')[0] || 'Evaluador';
+        const cleaned = local.replace(/[._+\-]/g, ' ').replace(/\s+/g, ' ').trim();
+        const parts = cleaned.split(' ').map(p => p.replace(/[^\p{L}]+/gu, '')).filter(Boolean);
+        const derivedName = parts.length > 0 ? (parts[0].charAt(0).toLocaleUpperCase('es-ES') + parts[0].slice(1).toLocaleLowerCase('es-ES')) : 'Evaluador';
         selectedData = [{
           id: `test-${Date.now()}`,
-          nombre_evaluador: 'Prueba',
+          nombre_evaluador: derivedName,
           correo: testEmail.trim(),
           nombre_evaluado: 'Test',
           cargo_evaluado: 'Test',
@@ -257,6 +281,9 @@ export default function EnviarFormularioPage() {
         <div style={{ marginBottom: 32, padding: 20, backgroundColor: '#eef2ff', borderRadius: 12, border: '1px solid #c7d2fe' }}>
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 18 }}>Selecciona a tus evaluadores</div>
+            {String(process.env.NEXT_PUBLIC_DISABLE_DB || '').toLowerCase() === 'true' && (
+              <div style={{ fontSize: 12, color: '#92400e', marginTop: 6 }}>Modo simulación activo (NEXT_PUBLIC_DISABLE_DB=true) — intentando cargar datos reales automáticamente</div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

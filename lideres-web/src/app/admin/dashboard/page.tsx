@@ -76,7 +76,7 @@ export default function DashboardPage() {
 
   return (
     <section className="dashboard-container">
-      <h2 style={{ margin: 0, marginBottom: 24, fontSize: 32, fontWeight: 800, transform: 'translateX(-16px) translateY(-60px)' }}>Dashboard</h2>
+      <h2 style={{ margin: 0, marginBottom: 24, fontSize: 32, fontWeight: 800, transform: 'translateX(-16px) translateY(-60px)' }}>DASHBOARD</h2>
 
       <div className="stat-grid">
         <div className="stat-card stat-evaluadores" role="button" aria-label="Evaluadores">
@@ -85,16 +85,16 @@ export default function DashboardPage() {
           <div className="stat-label">Evaluadores</div>
         </div>
 
+        <div className="stat-card stat-evaluados" role="button" aria-label="Evaluados">
+          <img src="/images/evaluadores.png" alt="Evaluados" className="stat-image natural" />
+          <div className="stat-value">{stats.evaluados}</div>
+          <div className="stat-label">Evaluados</div>
+        </div>
+
         <div className="stat-card stat-evaluaciones" role="button" aria-label="Evaluaciones">
           <img src="/images/evaluaciones.png" alt="Evaluaciones" className="stat-image natural" />
           <div className="stat-value">{stats.evaluaciones}</div>
           <div className="stat-label">Evaluaciones</div>
-        </div>
-
-        <div className="stat-card stat-completadas" role="button" aria-label="Completadas">
-          <img src="/images/completado.png" alt="Completadas" className="stat-image natural" />
-          <div className="stat-value">{stats.completadas}</div>
-          <div className="stat-label">Completadas</div>
         </div>
       </div>
 
@@ -107,10 +107,10 @@ export default function DashboardPage() {
           <div className="stat-label">Pendientes</div>
         </div>
 
-        <div className="stat-card stat-evaluados" role="button" aria-label="Evaluados">
-          <img src="/images/evaluadores.png" alt="Evaluados" className="stat-image natural" />
-          <div className="stat-value">{stats.evaluados}</div>
-          <div className="stat-label">Evaluados</div>
+        <div className="stat-card stat-completadas" role="button" aria-label="Completadas">
+          <img src="/images/completado.png" alt="Completadas" className="stat-image natural" />
+          <div className="stat-value">{stats.completadas}</div>
+          <div className="stat-label">Completadas</div>
         </div>
 
         <div className="stat-placeholder" aria-hidden="true" />

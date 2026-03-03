@@ -170,14 +170,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
                 {resultOpen && (
                   <div id="submenu-resultados" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <Link href="/admin/resultados" className={"menu-btn " + (pathname === "/admin/resultados" ? "active" : "") } style={{ paddingLeft: 28 }} aria-current={pathname === '/admin/resultados' ? 'page' : undefined} title="Resultados Detalle">
-                      <span className="menu-label">Resultados Detalle</span>
-                    </Link>
                     <Link href="/admin/resultados/datos-evaluacion" className={"menu-btn " + (pathname === "/admin/resultados/datos-evaluacion" ? "active" : "") } style={{ paddingLeft: 28 }} aria-current={pathname === '/admin/resultados/datos-evaluacion' ? 'page' : undefined} title="Datos Evaluacion">
                       <span className="menu-label">Datos Evaluacion</span>
                     </Link>
                     <Link href="/admin/resultados/resultados-finales" className={"menu-btn " + (pathname === "/admin/resultados/resultados-finales" ? "active" : "") } style={{ paddingLeft: 28 }} aria-current={pathname === '/admin/resultados/resultados-finales' ? 'page' : undefined} title="Resultados Finales">
                       <span className="menu-label">Resultados Finales</span>
+                    </Link>
+                    <Link href="/admin/resultados" className={"menu-btn " + (pathname === "/admin/resultados" ? "active" : "") } style={{ paddingLeft: 28 }} aria-current={pathname === '/admin/resultados' ? 'page' : undefined} title="Resultados Detalle">
+                      <span className="menu-label">Resultados Detalle</span>
                     </Link>
                   </div>
                 )}

@@ -7,6 +7,10 @@ const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false })
 
 export default function ReportesPage() {
   const [datos, setDatos] = React.useState<any[]>([]);
+  const [estilosLabels, setEstilosLabels] = React.useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [matches, setMatches] = React.useState<Array<{codigo:string,nombre:string}>>([]);
+  const [selectedCodigo, setSelectedCodigo] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -28,9 +32,17 @@ export default function ReportesPage() {
         return null;
       };
       const codesByGroup: Record<string, string[]> = { comunicacion: [], respeto: [], desarrollo: [], adaptabilidad: [], motivacion: [] };
+      const estilosByTipo: Record<string, string[]> = {};
       Object.values(affByCode).forEach((a: any) => {
         const g = classify(a);
         if (g) codesByGroup[g].push(String(a.codigo));
+        // collect estilos by tipo when afirmacion explicitly marked as estilo or tipo suggests estilo
+        const isEstilo = a.categoria === 'estilo';
+        if (isEstilo) {
+          const tipoKey = String(a.tipo || a.codigo || 'est').trim() || 'est';
+          estilosByTipo[tipoKey] = estilosByTipo[tipoKey] || [];
+          estilosByTipo[tipoKey].push(String(a.codigo));
+        }
       });
 
       const byEvaluado: Record<string, any> = {};
@@ -69,6 +81,23 @@ export default function ReportesPage() {
         const adaptabilidad = computeGroupAvg(codesByGroup.adaptabilidad);
         const motivacion = computeGroupAvg(codesByGroup.motivacion);
 
+        // compute estilos averages per tipo
+        const estilosMap: Record<string, number | null> = {};
+        Object.keys(estilosByTipo).forEach(tk => {
+          estilosMap[tk] = (function() {
+            if (evaluadores < 3) return null;
+            const vals: number[] = [];
+            entries.forEach((r: any) => {
+              estilosByTipo[tk].forEach((c: string) => {
+                const raw = r.responses?.[c];
+                const num = mapLabelToNumeric(raw);
+                if (typeof num === 'number' && !isNaN(num)) vals.push(num);
+              });
+            });
+            return vals.length ? +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2) : null;
+          })();
+        });
+
         const overall = (evaluadores >= 3 && item.values.length) ? +(item.values.reduce((s: number, v: number) => s + v, 0) / item.values.length).toFixed(2) : null;
 
         return {
@@ -81,16 +110,29 @@ export default function ReportesPage() {
           desarrollo: desarrollo ?? null,
           adaptabilidad: adaptabilidad ?? null,
           motivacion: motivacion ?? null,
+          estilos: estilosMap,
           promedio: overall ?? null
         };
       });
 
+      // determine estilos labels order
+      const estilosLabelsArr = Object.keys(estilosByTipo || {});
+      setEstilosLabels(estilosLabelsArr);
       setDatos(rows);
     } catch (e) {
       console.warn('Error building report data', e);
       setDatos([]);
     }
   }, []);
+
+  const findMatches = (term: string) => {
+    const t = (term || '').trim().toLowerCase();
+    if (!t) return [];
+    return datos
+      .filter(d => (String(d.nombre || d.codigo || '')).toLowerCase().includes(t))
+      .slice(0, 20)
+      .map(d => ({ codigo: d.codigo, nombre: d.nombre || d.codigo }));
+  };
 
   const barOptions = React.useMemo(() => {
     const categories = datos.map(d => d.nombre || d.codigo || '—');
@@ -116,6 +158,29 @@ export default function ReportesPage() {
       }
     };
   }, [datos]);
+
+  const radarEstilosOptions = React.useMemo(() => {
+    const labels = estilosLabels.length ? estilosLabels : [];
+    let source = datos;
+    if (selectedCodigo) source = datos.filter(d => String(d.codigo) === String(selectedCodigo));
+    const series = source.map(d => ({ name: d.nombre || d.codigo, data: labels.map(l => (d.estilos && typeof d.estilos[l] === 'number') ? d.estilos[l] : 0) }));
+    return {
+      series,
+      options: {
+        chart: { type: 'radar', height: 640, toolbar: { show: true }, foreColor: '#000000' },
+        plotOptions: { radar: { polygons: { strokeColors: '#374151', connectorColors: '#374151', fill: { colors: ['transparent'] }, opacity: 1 } } },
+        grid: { show: false },
+        xaxis: { categories: labels, labels: { style: { fontSize: '18px', colors: labels.map(() => '#000000') } } },
+        yaxis: { min: 0, max: 5, tickAmount: 5, labels: { style: { fontSize: '16px', colors: ['#000000'] } } },
+        stroke: { width: 4, curve: 'smooth' },
+        markers: { size: 12 },
+        fill: { opacity: 0.55 },
+        colors: ['#7C3AED', '#1D4ED8', '#0EA5A4', '#F97316', '#EF4444', '#64748B'],
+        legend: { position: 'bottom', horizontalAlign: 'center', labels: { colors: '#000000' }, fontSize: '16px' },
+        tooltip: { y: { formatter: (v:any) => v === null ? '—' : v.toFixed(2) } }
+      }
+    };
+  }, [datos, estilosLabels]);
 
   
 
@@ -158,16 +223,23 @@ export default function ReportesPage() {
 
   const radarOptions = React.useMemo(() => {
     const labels = ['Comunicación', 'Respeto', 'Desarrollo', 'Adaptabilidad', 'Motivación'];
-    const series = datos.map(d => ({ name: d.nombre || d.codigo, data: [d.comunicacion ?? 0, d.respeto ?? 0, d.desarrollo ?? 0, d.adaptabilidad ?? 0, d.motivacion ?? 0] }));
+    let source = datos;
+    if (selectedCodigo) source = datos.filter(d => String(d.codigo) === String(selectedCodigo));
+    const series = source.map(d => ({ name: d.nombre || d.codigo, data: [d.comunicacion ?? 0, d.respeto ?? 0, d.desarrollo ?? 0, d.adaptabilidad ?? 0, d.motivacion ?? 0] }));
     return {
       series,
       options: {
-        chart: { type: 'radar', height: 360, toolbar: { show: true } },
-        xaxis: { categories: labels },
-        yaxis: { min: 0, max: 5 },
-        stroke: { width: 2 },
-        markers: { size: 3 },
-        legend: { position: 'bottom' }
+        chart: { type: 'radar', height: 640, toolbar: { show: true }, foreColor: '#000000' },
+        plotOptions: { radar: { polygons: { strokeColors: '#374151', connectorColors: '#374151', fill: { colors: ['transparent'] }, opacity: 1 } } },
+        grid: { show: false },
+        xaxis: { categories: labels, labels: { style: { fontSize: '18px', colors: labels.map(() => '#000000') } } },
+        yaxis: { min: 0, max: 5, tickAmount: 5, labels: { style: { fontSize: '16px', colors: ['#000000'] } } },
+        stroke: { width: 4, curve: 'smooth' },
+        markers: { size: 12 },
+        fill: { opacity: 0.55 },
+        colors: ['#4F46E5', '#06B6D4', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6'],
+        legend: { position: 'bottom', horizontalAlign: 'center', labels: { colors: '#000000' }, fontSize: '16px' },
+        tooltip: { y: { formatter: (v:any) => v === null ? '—' : v.toFixed(2) } }
       }
     };
   }, [datos]);
@@ -175,38 +247,55 @@ export default function ReportesPage() {
   return (
     <section style={{ padding: 24 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12, transform: 'translateY(-80px)' }}>REPORTES</h1>
-      <p style={{ marginTop: -40, marginBottom: 28, color: 'rgba(15,23,42,0.8)' }}>Resumen de resultados por persona. Los promedios sólo se muestran cuando hay al menos tres evaluadores.</p>
+      <div style={{ marginTop: -40, marginBottom: 14, maxWidth: 520 }}>
+        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Buscar evaluado por nombre</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            aria-label="Buscar evaluado"
+            value={searchTerm}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSearchTerm(v);
+              setMatches(findMatches(v));
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && matches.length) { setSelectedCodigo(matches[0].codigo); setMatches([]); } }}
+            placeholder="Escribe nombre o código..."
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db' }}
+          />
+          {matches.length > 0 && (
+            <ul style={{ position: 'absolute', left: 0, right: 0, zIndex: 40, background: '#fff', border: '1px solid #e5e7eb', marginTop: 6, listStyle: 'none', padding: 8, borderRadius: 6, maxHeight: 220, overflow: 'auto' }}>
+              {matches.map(m => (
+                <li key={m.codigo} style={{ padding: '6px 8px', cursor: 'pointer' }} onClick={() => { setSelectedCodigo(m.codigo); setMatches([]); setSearchTerm(m.nombre); }}>
+                  {m.nombre}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 18 }}>
         <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid rgba(15,23,42,0.04)' }}>
-          <h3 style={{ margin: 0, marginBottom: 8, fontSize: 16, fontWeight: 700 }}>Competencias — promedios por evaluado</h3>
-          {typeof window !== 'undefined' && ReactApexChart ? (
-            <ReactApexChart options={barOptions.options} series={barOptions.series} type="bar" height={360} />
-          ) : (
-            <div>Gráfico</div>
-          )}
-        </div>
-
-        <div style={{ background: '#fff', padding: 12, borderRadius: 8, border: '1px solid rgba(15,23,42,0.04)' }}>
-          <h3 style={{ margin: 0, marginBottom: 8, fontSize: 16, fontWeight: 700 }}>Perfil individual</h3>
-          {typeof window !== 'undefined' && ReactApexChart ? (
-            <ReactApexChart options={radarOptions.options} series={radarOptions.series} type="radar" height={360} />
-          ) : (
-            <div>Gráfico</div>
-          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 22, alignItems: 'start' }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Competencias</div>
+              {typeof window !== 'undefined' && ReactApexChart ? (
+                <ReactApexChart options={radarOptions.options} series={radarOptions.series} type="radar" height={640} />
+              ) : (
+                <div>Gráfico competencias</div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Estilos</div>
+              {typeof window !== 'undefined' && ReactApexChart ? (
+                <ReactApexChart options={radarEstilosOptions.options} series={radarEstilosOptions.series} type="radar" height={640} />
+              ) : (
+                <div>Gráfico estilos</div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      
-      <div style={{ marginTop: 18, background: '#fff', padding: 12, borderRadius: 8, border: '1px solid rgba(15,23,42,0.04)' }}>
-        <h3 style={{ margin: 0, marginBottom: 8, fontSize: 16, fontWeight: 700 }}>Competencias por evaluado</h3>
-        {typeof window !== 'undefined' && ReactApexChart ? (
-          <ReactApexChart options={heatmapOptions.options} series={heatmapOptions.series} type="heatmap" height={320} />
-        ) : (
-          <div>Gráfico</div>
-        )}
-      </div>
-
-      
     </section>
   );
 }

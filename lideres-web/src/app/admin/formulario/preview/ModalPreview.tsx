@@ -117,7 +117,12 @@ export default function ModalPreview({ isOpen, onClose }: { isOpen: boolean; onC
                     alignItems: 'end',
                     marginBottom: 12,
                     paddingBottom: 8,
-                    borderBottom: '1px solid rgba(15,23,42,0.06)'
+                    borderBottom: '1px solid rgba(15,23,42,0.06)',
+                    position: 'sticky',
+                    top: 0,
+                    background: '#fff',
+                    zIndex: 4,
+                    paddingTop: 12
                   }}>
                     <div style={{ fontSize: 12, color: 'rgba(15,23,42,0.6)' }}>Pregunta</div>
                     {instrucciones.map((ins, i) => (

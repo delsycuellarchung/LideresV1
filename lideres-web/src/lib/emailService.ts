@@ -9,13 +9,14 @@ export const getEmailTransporter = () => {
   const port = parseInt(process.env.SMTP_PORT || '587');
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
+  const pool = String(process.env.SMTP_POOL || 'true').toLowerCase() !== 'false';
 
   console.log('📧 Email Config:', {
     host,
     port,
     user: user ? `${user.substring(0, 5)}...${user.substring(user.length - 5)}` : 'NOT SET',
     pass: pass ? `${pass.substring(0, 3)}...${pass.substring(pass.length - 3)}` : 'NOT SET',
-    authType: 'basic'
+    pool,
   });
 
   if (!user || !pass) {
@@ -27,13 +28,19 @@ export const getEmailTransporter = () => {
     transporter = nodemailer.createTransport({
       host,
       port,
-      secure: false,
+      secure: port === 465, // true for 465, false for other ports
+      pool: pool,
+      maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || '5', 10),
+      maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES || '100', 10),
       auth: {
         user,
         pass,
       },
-      logger: true,
-      debug: true,
+      logger: String(process.env.SMTP_LOGGER || 'false').toLowerCase() === 'true',
+      debug: String(process.env.SMTP_DEBUG || 'false').toLowerCase() === 'true',
+      tls: {
+        rejectUnauthorized: String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED || 'true').toLowerCase() === 'true',
+      },
     });
 
     console.log('✅ Nodemailer transporter created successfully');
@@ -59,6 +66,26 @@ export const sendFormEmail = async (params: {
   }
 
   const { evaluatorName, evaluatorEmail, evaluadoName, evaluadoCargo, formLink, mensajePersonalizado, formData } = params;
+
+  const deriveNameFromEmail = (email?: string) => {
+    if (!email) return 'Evaluador';
+    const local = String(email).split('@')[0];
+    // replace common separators with space
+    const cleaned = local.replace(/[._+\-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return 'Evaluador';
+    // remove trailing numbers and non-letter chars from tokens, preserve accented letters
+    const parts = cleaned.split(' ').map(p => p.replace(/[^\p{L}]+/gu, '')).filter(Boolean);
+    if (parts.length === 0) return 'Evaluador';
+    const pick = parts[0];
+    // capitalize using locale to preserve accents
+    return pick.charAt(0).toLocaleUpperCase('es-ES') + pick.slice(1).toLocaleLowerCase('es-ES');
+  };
+
+  const displayName = (evaluatorName && String(evaluatorName).trim()) ? String(evaluatorName).trim() : deriveNameFromEmail(evaluatorEmail);
+
+  if (String(process.env.SMTP_DEBUG || 'false').toLowerCase() === 'true') {
+    console.log('📨 [DEBUG] Email greeting values:', { evaluatorName, evaluatorEmail, displayName });
+  }
 
   const defaultOptions = ['Nunca', 'Rara vez', 'A veces', 'Frecuentemente', 'Siempre'];
 
@@ -94,8 +121,8 @@ export const sendFormEmail = async (params: {
         
         <!-- Header con branding -->
         <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 40px 30px; border-radius: 12px 12px 0 0; text-align: center; color: white;">
-          <h1 style="font-size: 28px; margin: 0 0 8px 0; font-weight: 700;">Formulario de Evaluación</h1>
-          <p style="font-size: 14px; margin: 0; opacity: 0.9;">Te invitamos a compartir tu feedback</p>
+          <h1 style="font-size: 28px; margin: 0 0 8px 0; font-weight: 700;">Formulario de Evalucion de Lideres</h1>
+          <p style="font-size: 14px; margin: 0; opacity: 0.9;">Te invitamos a compartir tu respuesta</p>
         </div>
 
         <!-- Contenido principal -->
@@ -103,17 +130,20 @@ export const sendFormEmail = async (params: {
           
           <!-- Saludo personalizado -->
           <div style="margin-bottom: 24px;">
-            <p style="font-size: 18px; color: #0f172a; margin: 0 0 8px 0; font-weight: 600;">¡Hola, <span style="color: #4f46e5;">${evaluatorName}</span>!</p>
+            <p style="font-size: 18px; color: #0f172a; margin: 0 0 8px 0; font-weight: 600;">¡Hola, <span style="color: #4f46e5;">${displayName}</span>!</p>
             <p style="font-size: 14px; color: #64748b; margin: 0; line-height: 1.6;">
               Esperamos tu valiosa evaluación sobre el desempeño de:
             </p>
+            <!-- Texto informado por el cliente -->
+            <div style="margin-top:12px; font-size:14px; color:#475569; line-height:1.7;">
+              <p style="margin:0 0 8px 0;">Esta herramienta nos permitirá conocer los estilos de liderazgo de nuestros Gerentes y Subgerentes, así como identificar oportunidades de mejora que aporten al desarrollo de toda la organización.</p>
+              <p style="margin:0 0 8px 0;">Su participación es clave, les pedimos que respondan la evaluación con total objetividad y sinceridad, ya que solo así podremos obtener resultados que reflejen la realidad y nos ayuden a evolucionar.</p>
+              <p style="margin:0 0 8px 0;">Al momento de completar el formulario, piensen en su líder directo. En la parte superior izquierda del formulario encontrará el nombre del líder asignado, lo cual les permitirá confirmar que están evaluando correctamente.</p>
+              <p style="margin:0 0 8px 0;">El formulario contiene diversas afirmaciones sobre situaciones laborales reales que se han presentado o que se presentan. Seleccionen únicamente una opción para cada afirmación, evaluando la frecuencia con la que su líder generalmente actúa o se comporta de esa manera.</p>
+            </div>
           </div>
 
-          <!-- Card con información del evaluado -->
-          <div style="background: #f8f9ff; border-left: 4px solid #4f46e5; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
-            <p style="font-size: 16px; color: #0f172a; margin: 0 0 4px 0; font-weight: 700;">${evaluadoName}</p>
-            ${evaluadoCargo ? `<p style="font-size: 13px; color: #64748b; margin: 0;">${evaluadoCargo}</p>` : ''}
-          </div>
+          <!-- Card del evaluado removida por petición del cliente -->
 
           <!-- Mensaje personalizado destacado -->
           ${mensajePersonalizado ? `
@@ -123,11 +153,9 @@ export const sendFormEmail = async (params: {
           </div>
           ` : ''}
 
-          <!-- Descripción -->
+          <!-- Descripción (texto simplificado) -->
           <div style="margin-bottom: 28px;">
-            <p style="font-size: 14px; color: #475569; line-height: 1.7; margin: 0;">
-              Tu feedback es fundamental para nuestro proceso de desarrollo y crecimiento. El formulario incluye preguntas sobre competencias y estilos de liderazgo. Tu honestidad y reflexión son vastamente apreciadas.
-            </p>
+            
           </div>
 
           <!-- Botón CTA -->
@@ -148,23 +176,13 @@ export const sendFormEmail = async (params: {
             </a>
           </div>
 
-          <!-- Detalles importantes -->
+          <!-- Detalles importantes (simplificados) -->
           <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
             <p style="font-size: 12px; color: #475569; margin: 0 0 8px 0; font-weight: 600;">⏰ Información importante:</p>
             <ul style="font-size: 13px; color: #64748b; margin: 0; padding-left: 20px; line-height: 1.7;">
-              <li>El enlace está disponible durante 24 horas</li>
               <li>Puedes guardar tu progreso y continuar después</li>
-              <li>Toma aproximadamente 10-15 minutos completarlo</li>
               <li>Toda la información es confidencial</li>
             </ul>
-          </div>
-
-          <!-- Cierre -->
-          <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; text-align: center;">
-            <p style="font-size: 13px; color: #64748b; margin: 0;">
-              Si tienes preguntas, contáctanos.<br>
-              <span style="color: #94a3b8; font-size: 12px;">Gracias por tu valioso aporte.</span>
-            </p>
           </div>
         </div>
 
@@ -179,21 +197,30 @@ export const sendFormEmail = async (params: {
   `;
 
   const mailOptions = {
-    from: `"Líderes" <${process.env.SMTP_USER}>`,
+    from: `${process.env.SMTP_FROM_NAME || 'Líderes'} <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
     to: evaluatorEmail,
-    subject: `Formulario de Evaluación: ${evaluadoName}`,
+    subject: `Evaluación de Lideres`,
     html: htmlContent,
   };
-
-  try {
-    console.log('📤 Enviando email a:', evaluatorEmail);
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Email enviado exitosamente:', result.messageId);
-    return true;
-  } catch (error: any) {
-    console.error('❌ Error enviando email:', error.message);
-    console.error('Full error:', error);
-    throw error;
+  const maxAttempts = parseInt(process.env.EMAIL_SEND_RETRIES || '3', 10);
+  let attempt = 0;
+  let lastError: any = null;
+  while (attempt < maxAttempts) {
+    try {
+      attempt += 1;
+      console.log(`📤 Enviando email a: ${evaluatorEmail} (intento ${attempt}/${maxAttempts})`);
+      const result = await transporter.sendMail(mailOptions);
+      console.log('✅ Email enviado exitosamente:', result.messageId);
+      return true;
+    } catch (error: any) {
+      lastError = error;
+      console.error(`❌ Error enviando email (intento ${attempt}):`, error && error.message ? error.message : error);
+      // backoff
+      const backoff = Math.min(2000 * attempt, 10000);
+      await new Promise((res) => setTimeout(res, backoff));
+    }
   }
+  console.error('❌ Todos los intentos fallaron. Último error:', lastError && lastError.message ? lastError.message : lastError);
+  throw lastError || new Error('Email send failed');
 };
 

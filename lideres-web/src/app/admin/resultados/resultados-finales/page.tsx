@@ -183,7 +183,7 @@ export default function ResultadosFinalesPage() {
   };
   return (
     <section style={{ padding: '6px 24px 20px 24px' }}>
-      <h1 style={{ margin: '0 0 0 12px', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>Resultados finales</h1>
+      <h1 style={{ margin: '0 0 0 12px', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>RESULTADOS FINALES</h1>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 8 }}>

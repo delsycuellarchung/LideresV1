@@ -47,6 +47,7 @@ export default function DatosImportadosPage() {
   const [evaluadores, setEvaluadores] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [evalFilter, setEvalFilter] = useState<'all'|'pending'|'completed'>('all');
   const [submissionStatus, setSubmissionStatus] = useState<Record<string, string>>({});
   const disableDb = String(process.env.NEXT_PUBLIC_DISABLE_DB || '').toLowerCase() === 'true';
   
@@ -244,6 +245,14 @@ export default function DatosImportadosPage() {
 
   const matchesSearch = (persona: Persona) => {
     if (searchTokens.length === 0) return true;
+    // ignore status keywords when matching text fields
+    const effectiveTokens = searchTokens.filter(t => !/pend|pendiente|pendientes|pending|comp|complet|completado|completed/.test(t));
+    if (effectiveTokens.length === 0) return true; // user only searched by status
+    const nameParts = (persona.nombre || '').split(/\s+/).filter(Boolean);
+    const correo = (persona.correo || '').toLowerCase();
+    const correoLocal = correo.split('@')[0] || '';
+    const correoDomain = correo.split('@')[1] || '';
+
     const values = [
       persona.codigo,
       persona.nombre,
@@ -258,15 +267,37 @@ export default function DatosImportadosPage() {
       persona.area_alt,
       persona.gerencia_alt,
       persona.tipo,
+      // include separated name parts and email fragments for better matching
+      ...nameParts,
+      correoLocal,
+      correoDomain,
     ]
       .filter((value) => value !== null && value !== undefined)
       .map((value) => normalizeText(String(value)));
 
-    return searchTokens.every((token) => values.some((value) => value.includes(token)));
+    return effectiveTokens.every((token) => values.some((value) => value.includes(token)));
   };
+
+  // Detect if the user is searching for a status keyword like 'pendiente' or 'completado'
+  const statusToken = searchTokens.find(t => /pend|pendiente|pendientes|pending|comp|complet|completado|completed/.test(t));
+  const statusTokenDesired: 'pending' | 'completed' | null = statusToken
+    ? (/comp|complet|completed/.test(statusToken) ? 'completed' : 'pending')
+    : null;
 
   const filteredEvaluados = evaluados.filter(matchesSearch);
   const filteredEvaluadores = evaluadores.filter(matchesSearch);
+
+  const displayEvaluadores = tab === 'evaluaciones'
+    ? filteredEvaluadores.filter((ev) => {
+        const status = submissionStatus[(ev.correo || '').toLowerCase()] || 'pending';
+        // If user typed a status keyword in search, respect it first
+        if (statusTokenDesired) {
+          if (status !== statusTokenDesired) return false;
+        }
+        if (evalFilter === 'all') return true;
+        return evalFilter === 'completed' ? status === 'completed' : status !== 'completed';
+      })
+    : filteredEvaluadores;
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, { bg: string; text: string }> = {
@@ -285,9 +316,9 @@ export default function DatosImportadosPage() {
   return (
     <div style={{ padding: 28, transform: 'translateY(-20px)' }}>
       <div className="page-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0 }}>
-        <h2 style={{ margin: '0 0 0 28px', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>DATOS IMPORTADOS</h2>
+        <h2 style={{ margin: '0 0 0 0', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>DATOS IMPORTADOS</h2>
 
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', paddingLeft: 28 }}>
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', paddingLeft: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input
               type="text"
@@ -334,6 +365,33 @@ export default function DatosImportadosPage() {
               </button>
             </div>
 
+            {/* Status filter shown only when Evaluaciones tab is active */}
+            {tab === 'evaluaciones' && (
+              <div style={{ display: 'flex', gap: 8, marginLeft: 12, alignItems: 'center' }}>
+                <button
+                  className={`tab-btn ${evalFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setEvalFilter('all')}
+                  style={{ height: 36, padding: '6px 10px' }}
+                >
+                  Todos
+                </button>
+                <button
+                  className={`tab-btn ${evalFilter === 'pending' ? 'active' : ''}`}
+                  onClick={() => setEvalFilter('pending')}
+                  style={{ height: 36, padding: '6px 10px' }}
+                >
+                  Pendientes
+                </button>
+                <button
+                  className={`tab-btn ${evalFilter === 'completed' ? 'active' : ''}`}
+                  onClick={() => setEvalFilter('completed')}
+                  style={{ height: 36, padding: '6px 10px' }}
+                >
+                  Completados
+                </button>
+              </div>
+            )}
+
             <button
               onClick={cargarDatos}
               className="btn-press"
@@ -349,7 +407,7 @@ export default function DatosImportadosPage() {
 
 
       {tab === "importados" ? (
-        <table className="import-table" aria-label="Tabla de datos importados" style={{ margin: '24px 0 24px 28px' }}>
+        <table className="import-table" aria-label="Tabla de datos importados" style={{ margin: '16px 0 24px 0' }}>
           <thead>
             <tr>
               <th>Código del Evaluado</th>
@@ -390,7 +448,7 @@ export default function DatosImportadosPage() {
           </tbody>
         </table>
       ) : tab === "otra" ? (
-        <table className="import-table" aria-label="Tabla adicional de datos" style={{ margin: '24px 0 24px 28px' }}>
+        <table className="import-table" aria-label="Tabla adicional de datos" style={{ margin: '16px 0 24px 0' }}>
           <thead>
             <tr>
               <th>Código del Evaluador</th>
@@ -431,7 +489,7 @@ export default function DatosImportadosPage() {
           </tbody>
         </table>
       ) : (
-        <table className="import-table" aria-label="Tabla de evaluaciones" style={{ margin: '24px 0 24px 28px' }}>
+        <table className="import-table" aria-label="Tabla de evaluaciones" style={{ margin: '16px 0 24px 0' }}>
           <thead>
             <tr>
               <th>Código</th>
@@ -443,20 +501,20 @@ export default function DatosImportadosPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+              {loading ? (
               <tr>
                 <td colSpan={6} style={{ padding: 12, textAlign: 'center' }}>
                   Cargando...
                 </td>
               </tr>
-            ) : filteredEvaluadores.length === 0 ? (
+            ) : displayEvaluadores.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ padding: 12, color: "rgba(15,23,42,0.6)" }}>
-                  No hay evaluadores importados.
+                  {searchTokens.length > 0 ? 'No hay resultados.' : 'No hay evaluadores importados.'}
                 </td>
               </tr>
             ) : (
-              filteredEvaluadores.map((ev) => {
+              displayEvaluadores.map((ev) => {
                 const status = submissionStatus[(ev.correo || '').toLowerCase()] || 'pending';
                 const nameParts = (ev.nombre || '').split(' ');
                 const firstName = nameParts.slice(0, 1).join(' ');

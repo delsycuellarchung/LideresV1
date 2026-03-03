@@ -296,7 +296,7 @@ export default function ResultadosPage() {
 
   return (
     <section style={{ padding: '6px 24px 20px 24px' }}>
-      <h1 style={{ margin: '0 0 0 12px', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>Resultados detalle</h1>
+      <h1 style={{ margin: '0 0 0 12px', fontSize: 32, fontWeight: 800, transform: 'translateY(-70px)' }}>RESULTADOS</h1>
       <div style={{ marginTop: -38, marginLeft: 12 }}>
         <label style={{ display: 'block', fontWeight: 700, marginBottom: 17 }}>Buscar por código del evaluado</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

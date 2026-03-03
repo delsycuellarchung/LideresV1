@@ -1,10 +1,27 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
+import { supabase } from '../../lib/supabaseClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  console.log('Request received:', req.method, req.headers);
-  console.log('Request body:', req.body);
+  console.log('Request received:', req.method);
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Prefer DB when available
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('imports')
+        .select('content, saved_at')
+        .order('saved_at', { ascending: false })
+        .limit(1);
+      if (!error && data && (data as any[]).length > 0) {
+        return res.status(200).json((data as any[])[0].content);
+      }
+    } catch (dbErr) {
+      console.warn('/api/import-last supabase read failed, falling back to file', dbErr);
+    }
+  }
+
   const filePath = './uploads-debug/last-import.json';
   try {
     if (!fs.existsSync(filePath)) {

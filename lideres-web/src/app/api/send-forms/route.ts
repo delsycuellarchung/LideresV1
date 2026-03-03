@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const sendEmails = String(process.env.SEND_EMAILS || 'true').toLowerCase() !== 'false';
     const results = [];
     let successCount = 0;
     let failureCount = 0;
@@ -27,12 +28,12 @@ export async function POST(request: NextRequest) {
     for (const evaluator of evaluators) {
       try {
         const formToken = uuidv4();
-        const email = evaluator.correo || evaluator.correo_evaluador;
-        const name = evaluator.nombre_evaluador || 'Evaluador';
-        const evaluadoName = evaluator.nombre_evaluado || 'N/A';
+        const email = evaluator.correo || evaluator.correo_evaluador || evaluator.email || null;
+        const name = (evaluator.nombre_evaluador || evaluator.nombre || evaluator.nombreEvaluador || evaluator.nombre_evaluador_alt || '').toString().trim();
+        const evaluadoName = (evaluator.nombre_evaluado || evaluator.nombre_alt || evaluator.nombreEvaluado || 'N/A').toString();
 
         // Valida si existe el correo
-        if (!email || email.trim() === '') {
+        if (!email || String(email).trim() === '') {
           failureCount++;
           results.push({
             success: false,
@@ -44,30 +45,34 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // enviar email
-        try {
-          console.log(`📧 [API] Enviando email a ${email} para ${evaluadoName}`);
-          await sendFormEmail({
-            evaluatorName: name,
-            evaluatorEmail: email,
-            evaluadoName: evaluadoName,
-            evaluadoCargo: evaluator.cargo_evaluado || null,
-            formLink: `${appUrl}/formulario/${formToken}`,
-            mensajePersonalizado: mensajePersonalizado || '',
-            formData: formData,
-          });
-          console.log(`✅ [API] Email enviado exitosamente a ${email}`);
-        } catch (emailError: any) {
-          console.error(`Email error for ${email}:`, emailError.message);
-          failureCount++;
-          results.push({
-            success: false,
-            evaluador: name,
-            correo: email,
-            evaluando: evaluadoName,
-            error: `Error enviando email: ${emailError.message}`,
-          });
-          continue;
+        // enviar email (puede deshabilitarse con SEND_EMAILS=false)
+        if (sendEmails) {
+          try {
+            console.log(`📧 [API] Enviando email a ${email} para ${evaluadoName}`);
+            await sendFormEmail({
+              evaluatorName: name || '',
+              evaluatorEmail: email,
+              evaluadoName: evaluadoName,
+              evaluadoCargo: evaluator.cargo_evaluado || null,
+              formLink: `${appUrl}/formulario/${formToken}`,
+              mensajePersonalizado: mensajePersonalizado || '',
+              formData: formData,
+            });
+            console.log(`✅ [API] Email enviado exitosamente a ${email}`);
+          } catch (emailError: any) {
+            console.error(`Email error for ${email}:`, emailError.message);
+            failureCount++;
+            results.push({
+              success: false,
+              evaluador: name,
+              correo: email,
+              evaluando: evaluadoName,
+              error: `Error enviando email: ${emailError.message}`,
+            });
+            continue;
+          }
+        } else {
+          console.log(`ℹ️ [API] SEND_EMAILS=false — simulando envío a ${email} para ${evaluadoName}`);
         }
         if (supabase) {
           try {
