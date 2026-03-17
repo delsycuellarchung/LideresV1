@@ -1,0 +1,45 @@
+{
+  "name": "lideres-dismatec-sa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ./scripts/predev.js && next dev",
+    "dev:with-ca": "cross-env NODE_EXTRA_CA_CERTS=./certs/ca.crt node ./scripts/predev.js && cross-env NODE_EXTRA_CA_CERTS=./certs/ca.crt next dev",
+    "dev:force": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "busboy": "^1.6.0",
+    "dotenv": "^17.3.1",
+    "exceljs": "^4.4.0",
+    "formidable": "^3.5.4",
+    "next": "16.1.6",
+    "nodemailer": "^8.0.1",
+    "react": "19.2.3",
+    "react-circular-progressbar": "^2.2.0",
+    "react-dom": "19.2.3",
+    "apexcharts": "^3.40.0",
+    "react-apexcharts": "^1.4.0",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "@tailwindcss/postcss": "^4",
+    "@types/formidable": "^3.4.6",
+    "@types/node": "^20",
+    "@types/nodemailer": "^7.0.10",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.24",
+    "babel-plugin-react-compiler": "1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5"
+  }
+}
